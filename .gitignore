@@ -1,0 +1,16 @@
+# Local data and secrets
+data/leads.jsonl
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.pyc
+
+# Test artifacts
+tests/artifacts/
+tests/.cache/
+
+# OS
+.DS_Store

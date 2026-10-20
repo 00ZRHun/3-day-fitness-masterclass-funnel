@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ApexFitness">
+  <defs>
+    <linearGradient id="apex-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3d6bff"/>
+      <stop offset="0.55" stop-color="#2f5bff"/>
+      <stop offset="1" stop-color="#151f45"/>
+    </linearGradient>
+    <linearGradient id="apex-sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".26"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#apex-tile)"/>
+  <rect width="64" height="32" rx="14" fill="url(#apex-sheen)"/>
+  <path d="M32 11.5 50.5 52h-9.9L32 30.9 23.4 52H13.5L32 11.5Z" fill="#fff"/>
+  <path d="M25 43.5h14" fill="none" stroke="#d8ff6b" stroke-width="3.4" stroke-linecap="round"/>
+  <circle cx="49" cy="14.5" r="3.2" fill="#d8ff6b"/>
+</svg>

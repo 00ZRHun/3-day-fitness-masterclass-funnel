@@ -1,0 +1,8 @@
+# ApexFitness — robots.txt
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /data/
+Disallow: /tools/
+
+Sitemap: https://apexfitness.com/sitemap.xml
