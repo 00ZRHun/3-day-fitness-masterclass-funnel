@@ -4,6 +4,13 @@ data/leads.jsonl
 .env.local
 .env.*.local
 
+# Cloudflare / Wrangler
+dist/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
 # Python
 __pycache__/
 *.pyc

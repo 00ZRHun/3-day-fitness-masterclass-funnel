@@ -1,0 +1,13 @@
+# Local-only Cloudflare Pages Function environment.
+# Copy to .dev.vars, then run `npm run preview:cloudflare`.
+# Cloudflare's dashboard environment variables are separate from this file.
+
+LEADS_WEBHOOK_URL=
+LEADS_WEBHOOK_SECRET=
+
+RESEND_API_KEY=
+LEADS_EMAIL=hello@apexfitness.com
+RESERVATION_FROM_EMAIL=ApexFitness <reservations@apexfitness.com>
+SEND_LEAD_CONFIRMATION=false
+
+ALLOW_UNCONFIGURED_LEADS=false

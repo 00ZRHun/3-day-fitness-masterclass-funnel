@@ -3,6 +3,13 @@ tools/
 tests/
 server.py
 README.md
+build.sh
+functions/
+dist/
+_headers
+_redirects
+.dev.vars
+.dev.vars.*
 .env
 .env.*
 !.env.example
