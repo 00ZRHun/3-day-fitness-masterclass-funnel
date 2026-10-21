@@ -1,4 +1,4 @@
-# Local-only Cloudflare Pages Function environment.
+# Local-only Cloudflare Worker/Pages Function environment.
 # Copy to .dev.vars, then run `npm run preview:cloudflare`.
 # Cloudflare's dashboard environment variables are separate from this file.
 

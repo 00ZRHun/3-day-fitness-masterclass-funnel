@@ -1,11 +1,11 @@
-# Cloudflare Pages response headers.
-# Docs: https://developers.cloudflare.com/pages/configuration/headers/
+# Cloudflare static-asset response headers.
+# Docs: https://developers.cloudflare.com/workers/static-assets/headers/
 #
-# These rules apply to static assets only. Pages Functions set their own
+# These rules apply to static assets only. Worker/Pages Functions set their own
 # headers in functions/api/*.js.
 #
-# Cloudflare Pages already serves static assets with ETag revalidation.
-# Avoid long-lived browser caching for the non-fingerprinted CSS/JS files so
+# Cloudflare already serves static assets with ETag revalidation. Avoid
+# long-lived browser caching for the non-fingerprinted CSS/JS files so
 # deployments are picked up immediately.
 
 /*

@@ -1,7 +1,7 @@
 # ApexFitness — 3-Day Strength Masterclass funnel
 
 Static landing page plus a serverless reservation endpoint. The same site can
-run locally, on Vercel, or on Cloudflare Pages.
+run locally, on Vercel, or on Cloudflare Workers.
 
 ## Local development
 
@@ -26,7 +26,17 @@ each reservation to `data/leads.jsonl`.
 `python3 -m http.server` only serves static files and will not accept the form
 submission.
 
-## Cloudflare Pages
+## Cloudflare Workers (Workers Builds)
+
+The failing Cloudflare project is a **Worker**, not a Pages project. Workers
+Builds runs `npx wrangler deploy`; without an explicit Wrangler config, Wrangler
+auto-detected the repository root as the static assets directory. That tried to
+upload `node_modules/workerd/bin/workerd` (134 MiB), which is above Cloudflare's
+25 MiB asset limit.
+
+`wrangler.jsonc` now pins the asset directory to `./dist` and provides a Worker
+entrypoint for the API routes. This prevents `node_modules` and other repository
+files from ever becoming deployment assets.
 
 ### Build settings
 
@@ -34,21 +44,28 @@ submission.
 | --- | --- |
 | Framework preset | `None` |
 | Build command | `npm run build` |
-| Build output directory | `dist` |
+| Deploy command | `npx wrangler deploy` (default) |
 | Root directory | leave blank |
 | Production branch | your branch, usually `main` |
 
-`npm run build` runs `build.sh`, which copies only the public site files,
-`_headers`, and `_redirects` into `dist`. Pages Functions are loaded from the
-top-level `functions/` directory automatically.
+`wrangler.jsonc` defines:
 
-If you prefer no build script, use the build command `exit 0` and the output
-directory `/`. That works too, but it also publishes `server.py`, `api/`, and
-`tools/` as static files.
+- `main`: `./worker.js`
+- `assets.directory`: `./dist`
+- `assets.binding`: `ASSETS`
+- `assets.not_found_handling`: `404-page`
+
+`npm run build` runs `build.sh`, which copies only the public site files,
+`_headers`, and `_redirects` into `dist`. `worker.js` routes `/api/reserve` and
+`/api/health` to the handlers in `functions/api/`, then falls back to
+`env.ASSETS.fetch(request)` for the static site.
+
+Do not remove `wrangler.jsonc`. Without it, Workers autoconfig can select the
+repository root and include `node_modules` in the asset upload.
 
 ### Environment variables
 
-Add these in **Workers & Pages → your Pages project → Settings → Variables and
+Add these in **Workers & Pages → your Worker → Settings → Variables and
 Secrets**. Set at least one delivery destination:
 
 | Variable | Required | Purpose |
@@ -68,21 +85,28 @@ only for preview/testing deployments.
 ### Deploy from Git
 
 1. Push the repository to GitHub/GitLab.
-2. In Cloudflare, go to **Workers & Pages → Create → Pages → Connect to Git**.
+2. In Cloudflare, go to **Workers & Pages → Create application → Workers → Connect to Git**.
 3. Select the repository.
 4. Use the build settings above.
 5. Add the environment variables.
 6. Save and deploy.
 
-### Test the Cloudflare Function locally
+### Test locally
 
 ```bash
 cp .dev.vars.example .dev.vars   # fill in a destination or set ALLOW_UNCONFIGURED_LEADS=true
 npm run preview:cloudflare
 ```
 
-This runs `build.sh` and starts `wrangler pages dev dist`. Wrangler loads
-`functions/` from the repository root.
+This runs `build.sh` and starts `wrangler dev`, which reads `wrangler.jsonc` and
+serves the Worker plus the files in `dist`.
+
+### Cloudflare Pages alternative
+
+The handlers in `functions/api/` remain compatible with Cloudflare Pages. If you
+intended to create a Pages project instead, use the Pages Git integration, set
+its build output directory to `dist`, and use `functions/` for the API. Do not
+add `pages_build_output_dir` to `wrangler.jsonc`; it is the Workers config.
 
 ## Endpoints
 
@@ -90,19 +114,19 @@ This runs `build.sh` and starts `wrangler pages dev dist`. Wrangler loads
 | --- | --- | --- |
 | `POST` | `/api/reserve` | Validate and deliver a reservation |
 | `OPTIONS` | `/api/reserve` | Preflight/method-discovery response |
-| `GET` | `/api/health` | Health check (Cloudflare Pages Function) |
+| `GET` | `/api/health` | Health check (Cloudflare Worker/Pages Function) |
 
 Cloudflare's per-isolate rate limit is best-effort. Add a WAF rate-limiting rule
 for `/api/reserve` if the site receives real traffic.
 
 ## Deployment notes
 
-- `_headers` and `_redirects` are Cloudflare Pages files. They are copied into
-  `dist` by `build.sh`. Headers do not apply to Pages Functions, so the function
-  sets its own security headers.
-- Cloudflare Pages automatically serves `/privacy` and `/terms` from
-  `privacy.html` and `terms.html`, and redirects `*.html` to the clean URL.
-  `_redirects` makes those redirects permanent (301).
-- Vercel remains supported through `vercel.json` and `api/reserve.js`. The
-  Cloudflare implementation lives in `functions/api/reserve.js`.
+- `_headers` and `_redirects` are Cloudflare static-asset files. They are copied
+  into `dist` by `build.sh`. Workers applies them to static asset responses;
+  Worker/API responses set their own security headers.
+- Cloudflare serves `/privacy` and `/terms` from `privacy.html` and
+  `terms.html`, and `_redirects` makes the `.html` redirects permanent (301).
+- `worker.js` routes `/api/reserve` and `/api/health` to the handlers in
+  `functions/api/`; all other requests fall through to `env.ASSETS`.
+- Vercel remains supported through `vercel.json` and `api/reserve.js`.
 - Never commit `.env`, `.dev.vars`, or real API keys.
