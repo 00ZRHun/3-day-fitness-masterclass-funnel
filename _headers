@@ -1,0 +1,26 @@
+# Cloudflare Pages response headers.
+# Docs: https://developers.cloudflare.com/pages/configuration/headers/
+#
+# These rules apply to static assets only. Pages Functions set their own
+# headers in functions/api/*.js.
+#
+# Cloudflare Pages already serves static assets with ETag revalidation.
+# Avoid long-lived browser caching for the non-fingerprinted CSS/JS files so
+# deployments are picked up immediately.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+
+/api/*
+  Cache-Control: no-store, max-age=0
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate

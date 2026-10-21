@@ -2,9 +2,11 @@
   "name": "apexfitness-masterclass-funnel",
   "version": "1.0.0",
   "private": true,
-  "description": "ApexFitness 3-Day Strength Masterclass funnel — static site with a serverless reservation endpoint.",
+  "description": "ApexFitness 3-Day Strength Masterclass funnel — static site with serverless reservation endpoints for Vercel and Cloudflare Pages.",
   "scripts": {
+    "build": "bash build.sh",
     "dev": "python3 server.py --port 4173",
+    "preview:cloudflare": "npm run build && npx wrangler pages dev dist",
     "test": "python3 tests/test_site.py"
   },
   "engines": {
