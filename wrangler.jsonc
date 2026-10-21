@@ -3,6 +3,9 @@
   "name": "apexfitness-masterclass-funnel",
   "main": "./worker.js",
   "compatibility_date": "2026-10-21",
+  "build": {
+    "command": "npm run build"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

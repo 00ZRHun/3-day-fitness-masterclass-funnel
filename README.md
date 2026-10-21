@@ -63,8 +63,8 @@ use an explicit, isolated asset directory and exclude `node_modules`.
 
 ### Fix
 
-- `wrangler.jsonc` pins `assets.directory` to `./dist` and points `main` at
-  `./worker.js`.
+- `wrangler.jsonc` pins `assets.directory` to `./dist`, points `main` at
+  `./worker.js`, and runs `npm run build` before every deployment.
 - Wrangler is pinned to `4.151.3` in `devDependencies`; Workers Builds uses that
   version instead of an unknown default.
 - `dist/.assetsignore` excludes control files and any dependency folders from
@@ -83,7 +83,7 @@ In **Workers & Pages → your Worker → Settings → Build**:
 | --- | --- |
 | Git branch | `static-page` |
 | Framework preset | `None` |
-| Build command | `npm run build` |
+| Build command | leave blank (Wrangler runs `npm run build`) |
 | Deploy command | `npx wrangler deploy` |
 | Root directory | leave blank |
 | Node version | 22 |
