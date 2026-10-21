@@ -5,7 +5,10 @@ server.py
 README.md
 build.sh
 functions/
+worker.js
+wrangler.jsonc
 dist/
+node_modules/
 _headers
 _redirects
 .dev.vars
