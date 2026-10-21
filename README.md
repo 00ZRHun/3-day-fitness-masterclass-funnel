@@ -1,67 +1,95 @@
 # ApexFitness — 3-Day Strength Masterclass funnel
 
-Static landing page plus a serverless reservation endpoint. The same site can
-run locally, on Vercel, or on Cloudflare Workers.
+Production landing page for the ApexFitness 3-Day Strength Masterclass. The
+public site is static HTML/CSS/JS, built into `dist/`, and served by a
+Cloudflare Worker that also handles reservation delivery.
 
-## Local development
+The `static-page` branch is intentionally deploy-only: it contains the static
+page, its assets, the Worker API handlers, and the minimal build/deployment
+configuration. Development servers and Python tooling are kept off this branch.
 
-The page can be opened directly from `index.html` for a visual preview, but the
-reservation form needs a server. From the repository root, use the included
-zero-dependency Python server:
+## Requirements
+
+- Node.js 22 or newer
+- npm
+
+A `.nvmrc` pins Node 22 for local tooling and Cloudflare Workers Builds.
+
+## Local preview
 
 ```bash
-python3 server.py --port 4173
+npm install
+cp .dev.vars.example .dev.vars   # set a destination or ALLOW_UNCONFIGURED_LEADS=true
+npm run preview
 ```
 
-Open <http://127.0.0.1:4173>.
+`npm run preview` runs the build and starts `wrangler dev`, serving the Worker
+and `dist/` at <http://localhost:8787>.
 
-If Node.js is installed, `npm run dev` runs the same server.
+For a visual-only preview without the API, run `npm run build` and serve
+`dist/` with any static file server.
 
-The local server handles both the static site and `POST /api/reserve`, appending
-each reservation to `data/leads.jsonl`.
+## Build
 
-- `GET /api/health` → `{"ok": true, "service": "apex-reserve"}`
-- `POST /api/reserve` → validates and stores a reservation
+```bash
+npm run build
+```
 
-`python3 -m http.server` only serves static files and will not accept the form
-submission.
+`build.sh` clears `dist/` and copies only public files:
 
-## Cloudflare Workers (Workers Builds)
+- `index.html`, `privacy.html`, `terms.html`, `404.html`
+- `assets/` (CSS, JS, images, fonts, icons, social image)
+- `robots.txt`, `sitemap.xml`, `site.webmanifest`
+- `_headers`, `_redirects`, `.assetsignore`
 
-The failing Cloudflare project is a **Worker**, not a Pages project. Workers
-Builds runs `npx wrangler deploy`; without an explicit Wrangler config, Wrangler
-auto-detected the repository root as the static assets directory. That tried to
-upload `node_modules/workerd/bin/workerd` (134 MiB), which is above Cloudflare's
-25 MiB asset limit.
+Worker source, `node_modules`, and repository tooling are never copied into
+`dist/`. The build also fails if any public asset exceeds Cloudflare's 25 MiB
+per-file limit.
 
-`wrangler.jsonc` now pins the asset directory to `./dist` and provides a Worker
-entrypoint for the API routes. This prevents `node_modules` and other repository
-files from ever becoming deployment assets.
+## Cloudflare Workers deployment
+
+### Root cause of the failed build
+
+The failed build used Wrangler's auto-detected project root as the asset
+directory. Workers Builds had installed Wrangler under `node_modules`, so the
+upload included:
+
+```text
+node_modules/workerd/bin/workerd (134 MiB)
+```
+
+Cloudflare rejects any asset larger than 25 MiB. The deployment must therefore
+use an explicit, isolated asset directory and exclude `node_modules`.
+
+### Fix
+
+- `wrangler.jsonc` pins `assets.directory` to `./dist` and points `main` at
+  `./worker.js`.
+- Wrangler is pinned to `4.151.3` in `devDependencies`; Workers Builds uses that
+  version instead of an unknown default.
+- `dist/.assetsignore` excludes control files and any dependency folders from
+  the upload.
+- A repository-root `.assetsignore` is also committed as a fail-safe if
+  Wrangler is ever auto-configured with `./` as the asset directory.
+- `build.sh` only copies the public site into `dist/`, so `node_modules` and
+  Worker source cannot become public assets.
+- The deployment uses the `static-page` branch.
 
 ### Build settings
 
+In **Workers & Pages → your Worker → Settings → Build**:
+
 | Setting | Value |
 | --- | --- |
+| Git branch | `static-page` |
 | Framework preset | `None` |
 | Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy` (default) |
+| Deploy command | `npx wrangler deploy` |
 | Root directory | leave blank |
-| Production branch | your branch, usually `main` |
+| Node version | 22 |
 
-`wrangler.jsonc` defines:
-
-- `main`: `./worker.js`
-- `assets.directory`: `./dist`
-- `assets.binding`: `ASSETS`
-- `assets.not_found_handling`: `404-page`
-
-`npm run build` runs `build.sh`, which copies only the public site files,
-`_headers`, and `_redirects` into `dist`. `worker.js` routes `/api/reserve` and
-`/api/health` to the handlers in `functions/api/`, then falls back to
-`env.ASSETS.fetch(request)` for the static site.
-
-Do not remove `wrangler.jsonc`. Without it, Workers autoconfig can select the
-repository root and include `node_modules` in the asset upload.
+Then push to `static-page`. Workers Builds will install the pinned Wrangler,
+build `dist/`, and deploy only the contents of `./dist`.
 
 ### Environment variables
 
@@ -76,57 +104,69 @@ Secrets**. Set at least one delivery destination:
 | `LEADS_EMAIL` | with Resend | Admin address that receives the reservation |
 | `RESERVATION_FROM_EMAIL` | optional | Verified Resend sender |
 | `SEND_LEAD_CONFIRMATION` | optional | `true` sends the athlete a confirmation email |
-| `ALLOW_UNCONFIGURED_LEADS` | preview only | `true` allows a 201 response without any destination; the lead is only logged |
+| `ALLOW_UNCONFIGURED_LEADS` | preview only | `true` returns 201 without a destination; the lead is only logged |
 
 If no destination is configured, `POST /api/reserve` returns **503** by design,
-so a lead is never silently discarded. `ALLOW_UNCONFIGURED_LEADS=true` exists
-only for preview/testing deployments.
+so a lead is never silently discarded. `ALLOW_UNCONFIGURED_LEADS=true` must not
+be used in production.
 
-### Deploy from Git
+## Routing and endpoints
 
-1. Push the repository to GitHub/GitLab.
-2. In Cloudflare, go to **Workers & Pages → Create application → Workers → Connect to Git**.
-3. Select the repository.
-4. Use the build settings above.
-5. Add the environment variables.
-6. Save and deploy.
+- `/` — landing page
+- `/privacy`, `/terms` — legal pages (clean canonical URLs)
+- `/privacy.html`, `/terms.html`, `/index.html` — permanent 301 redirects
+- `/api/reserve` — validate and deliver a reservation
+- `/api/health` — `{"ok": true, "service": "apex-reserve"}`
 
-### Test locally
+Cloudflare serves `privacy.html` and `terms.html` at the clean URLs and applies
+the explicit redirects in `_redirects`. `_headers` adds security and cache
+headers to static responses; the Worker sets its own API headers.
+
+## Attribution, analytics, and deep links
+
+Campaign values are captured on first landing and kept in `sessionStorage` under
+`apex_attribution_v1` (they clear when the tab closes):
+
+- `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`
+- `gclid`, `fbclid`, `msclkid`, `ttclid`, `ref`
+- sanitized referrer, landing path, and first/last-seen timestamps
+
+The reservation payload includes this object plus the current `page`. The API
+accepts only known fields, caps each value at 160 characters, and strips unknown
+keys before storage, email, or webhook delivery.
+
+Supported campaign links:
+
+| URL | Behaviour |
+| --- | --- |
+| `/?reserve=1` | Opens the reservation dialog after load |
+| `/?plan=installments` | Preselects the two-payment plan |
+| `/#reserve` | Also opens the reservation dialog |
+| `/?reserve=1&plan=installments` | Combines both deep links |
+
+The page pushes `view_item`, `reserve_open`, `begin_checkout`, `generate_lead`,
+`scroll_depth`, `calendar_download`, and other interaction events to
+`window.dataLayer` (and to `gtag` when present). Update `CONFIG.spotsLeft` and
+`CONFIG.capacity` in `assets/js/main.js` to change displayed availability; the
+static HTML values remain as no-JavaScript fallbacks.
+
+## Verification
 
 ```bash
-cp .dev.vars.example .dev.vars   # fill in a destination or set ALLOW_UNCONFIGURED_LEADS=true
-npm run preview:cloudflare
+npm install
+npm run build
+npx wrangler deploy --dry-run
 ```
 
-This runs `build.sh` and starts `wrangler dev`, which reads `wrangler.jsonc` and
-serves the Worker plus the files in `dist`.
+`--dry-run` must report `Read N files from the assets directory …/dist` and must
+not report any file over 25 MiB. For end-to-end checks, run `npm run preview`
+and submit the reservation form with `ALLOW_UNCONFIGURED_LEADS=true`; then test
+desktop/mobile layouts, keyboard access, deep links, and `/api/health`.
 
-### Cloudflare Pages alternative
+## Security notes
 
-The handlers in `functions/api/` remain compatible with Cloudflare Pages. If you
-intended to create a Pages project instead, use the Pages Git integration, set
-its build output directory to `dist`, and use `functions/` for the API. Do not
-add `pages_build_output_dir` to `wrangler.jsonc`; it is the Workers config.
-
-## Endpoints
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/api/reserve` | Validate and deliver a reservation |
-| `OPTIONS` | `/api/reserve` | Preflight/method-discovery response |
-| `GET` | `/api/health` | Health check (Cloudflare Worker/Pages Function) |
-
-Cloudflare's per-isolate rate limit is best-effort. Add a WAF rate-limiting rule
-for `/api/reserve` if the site receives real traffic.
-
-## Deployment notes
-
-- `_headers` and `_redirects` are Cloudflare static-asset files. They are copied
-  into `dist` by `build.sh`. Workers applies them to static asset responses;
-  Worker/API responses set their own security headers.
-- Cloudflare serves `/privacy` and `/terms` from `privacy.html` and
-  `terms.html`, and `_redirects` makes the `.html` redirects permanent (301).
-- `worker.js` routes `/api/reserve` and `/api/health` to the handlers in
-  `functions/api/`; all other requests fall through to `env.ASSETS`.
-- Vercel remains supported through `vercel.json` and `api/reserve.js`.
 - Never commit `.env`, `.dev.vars`, or real API keys.
+- The per-isolate API rate limit is best-effort. Add a Cloudflare WAF
+  rate-limiting rule for `/api/reserve` if the page receives real traffic.
+- Both API handlers validate email, consent, and the honeypot, cap request
+  bodies at 32 KiB, and sanitize attribution before delivery.

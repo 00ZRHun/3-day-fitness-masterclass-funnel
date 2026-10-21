@@ -7,6 +7,21 @@
     deadline: "2026-10-30T23:59:59-04:00",
     priceFull: 299,
     priceInstallment: 159,
+    spotsLeft: 7,
+    capacity: 20,
+    attributionKey: "apex_attribution_v1",
+    attributionKeys: [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_content",
+      "utm_term",
+      "gclid",
+      "fbclid",
+      "msclkid",
+      "ttclid",
+      "ref"
+    ],
     sessions: [
       {
         id: "apex-014-day-1",
@@ -43,7 +58,8 @@
     step: 1,
     submitting: false,
     lastTrigger: null,
-    submission: null
+    submission: null,
+    attribution: null
   };
 
   function track(event, params = {}) {
@@ -52,6 +68,104 @@
       window.gtag("event", event, params);
     }
   }
+
+  function cleanAttributionValue(value) {
+    return String(value || "")
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .trim()
+      .slice(0, 160);
+  }
+
+  function safeReferrer() {
+    if (!document.referrer) return "";
+    try {
+      const url = new URL(document.referrer);
+      return `${url.origin}${url.pathname}`.slice(0, 160);
+    } catch {
+      return cleanAttributionValue(document.referrer);
+    }
+  }
+
+  function captureAttribution() {
+    const incoming = {};
+    const params = new URLSearchParams(window.location.search);
+    CONFIG.attributionKeys.forEach((key) => {
+      const value = cleanAttributionValue(params.get(key));
+      if (value) incoming[key] = value;
+    });
+
+    let saved = {};
+    try {
+      const stored = window.sessionStorage.getItem(CONFIG.attributionKey);
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        saved = parsed;
+      }
+    } catch {
+      saved = {};
+    }
+
+    const now = new Date().toISOString();
+    const attribution = {
+      ...saved,
+      ...incoming,
+      referrer: saved?.referrer || safeReferrer(),
+      landing_page: saved?.landing_page || cleanAttributionValue(window.location.pathname),
+      first_seen_at: saved?.first_seen_at || now,
+      last_seen_at: now
+    };
+
+    try {
+      window.sessionStorage.setItem(CONFIG.attributionKey, JSON.stringify(attribution));
+    } catch {
+      // Storage can be unavailable in private modes; the in-memory copy still travels with the lead.
+    }
+    return attribution;
+  }
+
+  function applyAvailability() {
+    const capacity = Math.max(1, Number(CONFIG.capacity) || 20);
+    const left = Math.max(0, Math.min(capacity, Number(CONFIG.spotsLeft) || 0));
+    const reserved = capacity - left;
+
+    $$("[data-spots-left]").forEach((element) => {
+      element.textContent = String(left);
+    });
+    $$("[data-spots-capacity]").forEach((element) => {
+      element.textContent = String(capacity);
+    });
+    $$("[data-spots-reserved]").forEach((element) => {
+      element.textContent = String(reserved);
+    });
+    $$("[data-spots-meter]").forEach((meter) => {
+      if (meter.children.length !== capacity) {
+        meter.replaceChildren(
+          ...Array.from({ length: capacity }, () => document.createElement("span"))
+        );
+      }
+      Array.from(meter.children).forEach((segment, index) => {
+        segment.classList.toggle("is-filled", index < reserved);
+      });
+      meter.setAttribute("aria-label", `${reserved} of ${capacity} spots reserved`);
+    });
+  }
+
+  state.attribution = captureAttribution();
+  applyAvailability();
+  track("view_item", {
+    currency: "USD",
+    value: CONFIG.priceFull,
+    cohort: CONFIG.cohort,
+    items: [
+      {
+        item_id: `apex-masterclass-${CONFIG.cohort}`,
+        item_name: "ApexFitness 3-Day Strength Masterclass",
+        item_category: "Masterclass",
+        price: CONFIG.priceFull,
+        quantity: 1
+      }
+    ]
+  });
 
   function scrollLock() {
     const anyOpen = $$("dialog[open]").length > 0;
@@ -100,6 +214,18 @@
     });
   }
 
+  const depthMarks = [25, 50, 75, 90];
+  const seenDepths = new Set();
+  function trackScrollDepth(progress) {
+    const percent = Math.round(progress * 100);
+    depthMarks.forEach((mark) => {
+      if (percent >= mark && !seenDepths.has(mark)) {
+        seenDepths.add(mark);
+        track("scroll_depth", { percent: mark });
+      }
+    });
+  }
+
   let ticking = false;
   function onScroll() {
     if (ticking) return;
@@ -117,6 +243,7 @@
       if (mobileCta) mobileCta.classList.toggle("is-visible", scrollTop > 560);
 
       setActiveNav();
+      trackScrollDepth(progress);
       ticking = false;
     });
   }
@@ -322,7 +449,6 @@
   const successPlan = $("[data-success-plan]");
   const nextButton = $("[data-next-step]", reserveForm);
   const previousButton = $("[data-prev-step]", reserveForm);
-  const calendarButton = $("[data-calendar]");
 
   const fieldMap = {
     name: { input: $("#reserve-name"), error: $('[data-error-for="name"]') },
@@ -455,7 +581,16 @@
     if (reserveDialog.open) return;
     if (state.step === 3) resetForm();
     openDialog(reserveDialog);
-    track("reserve_open", { source: trigger?.dataset.track || "unknown", plan: state.plan });
+    const value = state.plan === "installments" ? CONFIG.priceInstallment : CONFIG.priceFull;
+    const source = trigger?.dataset.track || "unknown";
+    track("reserve_open", { source, plan: state.plan });
+    track("begin_checkout", {
+      currency: "USD",
+      value,
+      plan: state.plan,
+      cohort: CONFIG.cohort,
+      source
+    });
     window.setTimeout(() => {
       if (state.step === 1) $("#reserve-name")?.focus({ preventScroll: true });
     }, 120);
@@ -562,7 +697,9 @@
       plan: state.plan,
       consent: $('input[name="consent"]', reserveForm)?.checked === true,
       company: $("#reserve-company")?.value || "",
-      cohort: CONFIG.cohort
+      cohort: CONFIG.cohort,
+      attribution: state.attribution,
+      page: window.location.pathname
     };
 
     setSubmitting(true);
@@ -572,11 +709,15 @@
     }
     if (formStatus) formStatus.textContent = "Sending your reservation request.";
 
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const requestTimeout = window.setTimeout(() => controller?.abort(), 15000);
+
     try {
       const response = await fetch(CONFIG.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller?.signal
       });
 
       let data = {};
@@ -600,13 +741,27 @@
           : `Thanks, ${firstName}. We’ve received your request and will confirm your spot at ${payload.email} within one business day. Save the dates below—no payment has been taken.`;
       }
       if (formStatus) formStatus.textContent = `Reservation request received. Reference ${data.id || "APX"}.`;
-      track("reserve_submit", { plan: state.plan, value: state.plan === "installments" ? CONFIG.priceInstallment : CONFIG.priceFull });
+      const value = state.plan === "installments" ? CONFIG.priceInstallment : CONFIG.priceFull;
+      track("reserve_submit", { plan: state.plan, value });
+      track("generate_lead", {
+        lead_id: data.id,
+        currency: "USD",
+        value,
+        plan: state.plan,
+        cohort: CONFIG.cohort,
+        source: state.attribution?.utm_source || "direct"
+      });
       setStep(3);
     } catch (error) {
-      showFormError(error.message || "Something went wrong. Please try again or email hello@apexfitness.com.");
+      const message =
+        error?.name === "AbortError"
+          ? "That took longer than expected. Check your connection and try again, or email hello@apexfitness.com."
+          : error.message || "Something went wrong. Please try again or email hello@apexfitness.com.";
+      showFormError(message);
       if (formStatus) formStatus.textContent = "Reservation request failed.";
-      track("form_error", { step: 2, message: "request_failed" });
+      track("form_error", { step: 2, message: error?.name === "AbortError" ? "timeout" : "request_failed" });
     } finally {
+      window.clearTimeout(requestTimeout);
       setSubmitting(false);
     }
   });
@@ -649,7 +804,7 @@
     return lines.join("\r\n");
   }
 
-  calendarButton?.addEventListener("click", () => {
+  function downloadCalendar(source = "unknown") {
     const blob = new Blob([buildCalendar()], { type: "text/calendar;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -659,7 +814,13 @@
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    track("calendar_download");
+    track("calendar_download", { source });
+  }
+
+  $$("[data-calendar]").forEach((button) => {
+    button.addEventListener("click", () => {
+      downloadCalendar(button.dataset.calendarSource || "success");
+    });
   });
 
   /* -------------------------------------------------------
@@ -691,5 +852,27 @@
     if (reserveDialog?.open && !state.submitting) closeReserve();
   });
 
+  /* -------------------------------------------------------
+     Campaign deep links
+     ?reserve=1 opens the reservation flow from ads or email.
+     ?plan=installments preselects the payment plan.
+     ------------------------------------------------------- */
+  function applyDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get("plan");
+    if (plan === "installments" || plan === "full") {
+      applyPlan(plan, false);
+    }
+    const wantsReserve = ["1", "true", "yes"].includes(
+      (params.get("reserve") || "").toLowerCase()
+    );
+    if (wantsReserve || window.location.hash === "#reserve") {
+      window.setTimeout(() => {
+        openReserve({ dataset: { track: "deep_link" } });
+      }, 250);
+    }
+  }
+
   window.addEventListener("pageshow", scrollLock);
+  applyDeepLink();
 })();

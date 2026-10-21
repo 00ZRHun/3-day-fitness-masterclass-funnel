@@ -27,7 +27,7 @@
   --ink: #070d1d;
   --ink-soft: #0c1428;
   --ink-lift: #111c35;
-  --blue: #2f5bff;
+  --blue: #2850e6;
   --blue-bright: #4b72ff;
   --blue-soft: #8fb0ff;
   --blue-pale: #eef3ff;
@@ -620,6 +620,7 @@ button { cursor: pointer; }
     scroll-behavior: auto !important;
   }
   .js .reveal { opacity: 1; transform: none; }
+  .ticker-track, .status-dot { animation: none !important; }
 }
 /* =========================================================
    Hero
@@ -929,6 +930,7 @@ button { cursor: pointer; }
   display: grid;
   grid-template-columns: repeat(20, 1fr);
   gap: 2px;
+  min-height: 4px;
   margin: 12px 0 9px;
 }
 .spots-meter span {
@@ -1295,6 +1297,28 @@ button { cursor: pointer; }
 }
 .curriculum-meta span { display: inline-flex; align-items: center; gap: 7px; }
 .curriculum-meta .icon { width: 14px; height: 14px; color: var(--blue); }
+.meta-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.meta-action .icon { width: 12px; height: 12px; }
+.meta-action:hover {
+  border-color: var(--blue);
+  background: rgba(47, 91, 255, 0.06);
+  color: var(--blue);
+}
 .curriculum-layout {
   display: grid;
   grid-template-columns: 310px minmax(0, 1fr);
@@ -2353,7 +2377,9 @@ button { cursor: pointer; }
   letter-spacing: 0.005em;
   text-transform: uppercase;
 }
+.final-title > span { display: block; }
 .final-title em {
+  display: block;
   font-family: var(--font-serif);
   font-size: 0.98em;
   font-style: italic;
@@ -2481,7 +2507,8 @@ button { cursor: pointer; }
 .mobile-cta {
   position: fixed;
   z-index: 80;
-  left: 10px; right: 10px; bottom: 10px;
+  left: 10px; right: 10px;
+  bottom: max(10px, env(safe-area-inset-bottom));
   display: none;
   align-items: center;
   justify-content: space-between;
@@ -3409,7 +3436,7 @@ button { cursor: pointer; }
   .footer-cta { grid-column: auto; align-items: flex-start; }
   .footer-cta .btn { margin-left: 0; width: 100%; }
   .footer-bottom { flex-direction: column; align-items: flex-start; }
-  .mobile-cta { left: 8px; right: 8px; bottom: 8px; padding: 8px 8px 8px 13px; }
+  .mobile-cta { left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); padding: 8px 8px 8px 13px; }
   .mobile-cta-copy strong { font-size: 16px; }
   .mobile-cta .btn { padding-left: 13px; font-size: 10.5px; }
   .mobile-cta .btn-icon { display: none; }
@@ -3420,7 +3447,7 @@ button { cursor: pointer; }
   .reserve-dates { gap: 12px; }
   .reserve-dates span { font-size: 11px; }
   .reserve-dates span + span { font-size: 8.5px; }
-  .reserve-main { padding: 20px; }
+  .reserve-main { padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); }
   .reserve-progress { margin-bottom: 18px; }
   .reserve-close { top: 12px; right: 12px; }
   .form-step h2 { font-size: 34px; }

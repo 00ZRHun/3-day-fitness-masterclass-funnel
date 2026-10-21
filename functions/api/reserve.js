@@ -26,6 +26,22 @@ const ALLOWED_GOALS = new Set([
 ]);
 const ALLOWED_EXPERIENCE = new Set(["new", "intermediate", "advanced"]);
 const ALLOWED_PLANS = new Set(["full", "installments"]);
+const ATTRIBUTION_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "gclid",
+  "fbclid",
+  "msclkid",
+  "ttclid",
+  "ref",
+  "referrer",
+  "landing_page",
+  "first_seen_at",
+  "last_seen_at",
+];
 const MAX_BODY_BYTES = 32 * 1024;
 const RATE_WINDOW_MS = 60_000;
 const RATE_MAX_REQUESTS = 8;
@@ -55,6 +71,16 @@ function clean(value, maxLength) {
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
     .trim()
     .slice(0, maxLength);
+}
+
+function cleanAttribution(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const attribution = {};
+  for (const key of ATTRIBUTION_KEYS) {
+    const entry = clean(value[key], 160);
+    if (entry) attribution[key] = entry;
+  }
+  return attribution;
 }
 
 function validate(payload) {
@@ -102,6 +128,8 @@ function validate(payload) {
       experience: experience || null,
       plan,
       cohort: "014",
+      page: clean(payload.page, 160) || null,
+      attribution: cleanAttribution(payload.attribution),
     },
   };
 }
@@ -199,6 +227,8 @@ function leadEmail(lead, id) {
     ["Experience", lead.experience || "—"],
     ["Note", lead.note || "—"],
     ["Cohort", "014 · Nov 6–8, 2026"],
+    ["Source", lead.attribution?.utm_source || lead.attribution?.referrer || "—"],
+    ["Campaign", lead.attribution?.utm_campaign || "—"],
   ];
 
   const text = rows.map(([label, value]) => `${label}: ${plain(value)}`).join("\n");
@@ -302,6 +332,8 @@ async function sendToWebhook(lead, id, request, env) {
     meta: {
       source: "apexfitness.com",
       cohort: "014",
+      page: lead.page,
+      attribution: lead.attribution,
       userAgent: clean(request.headers.get("user-agent"), 300),
       referer: clean(request.headers.get("referer"), 300),
       ip: clientIp(request),
