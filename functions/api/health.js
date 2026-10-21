@@ -13,7 +13,7 @@ export function onRequest(context) {
   }
 
   return new Response(
-    JSON.stringify({ ok: true, service: "apex-reserve", runtime: "cloudflare-pages" }),
+    JSON.stringify({ ok: true, service: "apex-reserve", runtime: "cloudflare" }),
     { status: 200, headers: HEADERS }
   );
 }

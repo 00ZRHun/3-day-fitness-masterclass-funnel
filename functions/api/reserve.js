@@ -1,5 +1,5 @@
 /**
- * POST /api/reserve — Cloudflare Pages Function.
+ * POST /api/reserve — Cloudflare Function (Pages) and Worker handler.
  *
  * The page is fully static. This function validates a reservation request and
  * delivers it to one or both of:
@@ -9,8 +9,8 @@
  *   RESEND_API_KEY     — Resend transactional email (admin notification and,
  *                        optionally, a confirmation to the athlete).
  *
- * Configure the values in Cloudflare Pages → Settings → Variables and Secrets,
- * or in `.dev.vars` for `npx wrangler pages dev`.
+ * Configure the values in Cloudflare → Settings → Variables and Secrets, or in
+ * `.dev.vars` for local `wrangler dev`.
  *
  * If no destination is configured, the function returns 503 instead of
  * silently discarding a lead. Set ALLOW_UNCONFIGURED_LEADS=true only for a
